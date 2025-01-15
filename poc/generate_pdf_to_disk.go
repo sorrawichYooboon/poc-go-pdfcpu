@@ -26,7 +26,7 @@ func GeneratePDFToDisk(c echo.Context) error {
 	}
 
 	// Step 3: Convert HTML to PDF using chromedp
-	tempPDFPath := "output/temp.pdf"
+	tempPDFPath := "output/html_to_pdf.pdf"
 	if err := convertHTMLToPDFWithChromedpSave(htmlContent, tempPDFPath); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to convert HTML to PDF"})
 	}
