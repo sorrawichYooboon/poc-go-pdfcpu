@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
 	"os"
-	"os/exec"
 
+	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/chromedp"
 	"github.com/labstack/echo/v4"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
@@ -29,21 +31,17 @@ func main() {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		// Step 3: Convert HTML to PDF (using wkhtmltopdf)
-		tempHTMLPath := "output/temp.html"
+		// Step 3: Convert HTML to PDF using chromedp
 		tempPDFPath := "output/temp.pdf"
-		if err := os.WriteFile(tempHTMLPath, []byte(htmlContent), 0644); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to write temp HTML file"})
-		}
-
-		if err := convertHTMLToPDF(tempHTMLPath, tempPDFPath); err != nil {
+		if err := convertHTMLToPDFWithChromedp(htmlContent, tempPDFPath); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to convert HTML to PDF"})
 		}
 
 		// Step 4: Merge with another PDF
-		additionalPDFPath := "assets/additional.pdf"
+		additionalPDFPath := "assets/test1.pdf"
+		additional2PDFPath := "assets/test2.pdf"
 		mergedPDFPath := "output/merged.pdf"
-		if err := mergePDFs([]string{tempPDFPath, additionalPDFPath}, mergedPDFPath); err != nil {
+		if err := mergePDFs([]string{tempPDFPath, additionalPDFPath, additional2PDFPath}, mergedPDFPath); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to merge PDFs"})
 		}
 
@@ -75,12 +73,38 @@ func processTemplate(templatePath string, data map[string]string) (string, error
 	return buf.String(), nil
 }
 
-// convertHTMLToPDF converts an HTML file to a PDF using wkhtmltopdf
-func convertHTMLToPDF(htmlPath, pdfPath string) error {
-	cmd := exec.Command("wkhtmltopdf", htmlPath, pdfPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error running wkhtmltopdf: %v", err)
+// convertHTMLToPDFWithChromedp converts HTML content to a PDF using chromedp
+func convertHTMLToPDFWithChromedp(htmlContent, pdfPath string) error {
+	// Create a new Chrome context
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	// Buffer to store the generated PDF
+	var pdfBuffer []byte
+
+	// Run chromedp tasks
+	err := chromedp.Run(ctx,
+		// Navigate to the HTML content
+		chromedp.Navigate(`data:text/html,`+htmlContent),
+
+		// Generate PDF from the HTML content
+		chromedp.EmulateViewport(1280, 1024), // Optional: Adjust viewport for rendering
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var err error
+			pdfBuffer, _, err = page.PrintToPDF().WithPrintBackground(true).Do(ctx)
+			return err
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("error generating PDF with chromedp: %v", err)
 	}
+
+	// Write the PDF to the specified file
+	err = os.WriteFile(pdfPath, pdfBuffer, 0644)
+	if err != nil {
+		return fmt.Errorf("error saving PDF: %v", err)
+	}
+
 	return nil
 }
 
