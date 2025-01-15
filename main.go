@@ -36,6 +36,7 @@ func main() {
 		// tempPDFPath := "output/temp.pdf"
 		pdfBuffer, err := convertHTMLToPDFWithChromedp(htmlContent)
 		if err != nil {
+			fmt.Println(err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to convert HTML to PDF"})
 		}
 
@@ -59,6 +60,7 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("error merging PDFs: %v", err)
 		}
+
 
 		return c.Blob(http.StatusOK, "application/pdf", b.Bytes())
 	})

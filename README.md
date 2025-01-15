@@ -1,3 +1,4 @@
+
 # PDF Generator and Merger API (PoC)
 
 This is a Proof of Concept (PoC) API built with Go to demonstrate generating PDFs from HTML templates and merging them with existing PDF files using chromedp and pdfcpu.
@@ -18,21 +19,20 @@ This is a Proof of Concept (PoC) API built with Go to demonstrate generating PDF
 
 ## Setup
 
-1. Install Go Dependencies:
+Go build
 
-```bash
-go mod tidy
+``` bash
+env GOOS=linux GOARCH=amd64 go build -o app .
 ```
 
-2. Install Chromium:
+Docker build
+``` bash
+docker build -t app
+```
 
-   - Ubuntu/Debian: `sudo apt install -y chromium`
-   - Alpine: `apk add --no-cache chromium`
-
-3. Run the Server:
-
-```bash
-go run main.go
+Docker run
+``` bash
+docker run --cpus=2 -p 8080:8080 app
 ```
 
 ## API Endpoint
@@ -50,3 +50,4 @@ curl -X POST http://localhost:8080/generate-pdf --output result.pdf
 ## Note
 
 This is a PoC for demonstration purposes and not intended for production use.
+
