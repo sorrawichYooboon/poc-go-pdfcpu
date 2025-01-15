@@ -45,9 +45,6 @@ func main() {
 		additional2PDFPath := "assets/test2.pdf"
 		// mergedPDFPath := "output/merged.pdf"
 
-		// Configuration for pdfcpu (use nil for default configuration)
-		conf := model.NewDefaultConfiguration()
-
 		// Read additional PDF files into memory
 		additionalPDF, err := os.ReadFile(additionalPDFPath)
 		if err != nil {
@@ -59,22 +56,13 @@ func main() {
 			return fmt.Errorf("failed to read second additional PDF file: %v", err)
 		}
 
-		// Create readers for the PDFs
-		readers := []io.ReadSeeker{
-			bytes.NewReader(pdfBuffer),      // First PDF (generated PDF)
-			bytes.NewReader(additionalPDF),  // Second PDF (file from path)
-			bytes.NewReader(additional2PDF), // Third PDF (file from path)
-		}
-
-		// Buffer to hold the merged PDF data
-		tempw := new(bytes.Buffer)
-
-		// Merge PDFs into the output file
-		if err := api.MergeRaw(readers, tempw, false, conf); err != nil {
+		b, err := mergePDFs(pdfBuffer, additionalPDF, additional2PDF)
+		if err != nil {
 			return fmt.Errorf("error merging PDFs: %v", err)
 		}
 
-		return c.Blob(http.StatusOK, "application/pdf", tempw.Bytes())
+
+		return c.Blob(http.StatusOK, "application/pdf", b.Bytes())
 	})
 
 	// Start the server
@@ -122,24 +110,25 @@ func convertHTMLToPDFWithChromedp(htmlContent string) ([]byte, error) {
 		return nil, fmt.Errorf("error generating PDF with chromedp: %v", err)
 	}
 
-	// // Write the PDF to the specified file
-	// err = os.WriteFile(pdfPath, pdfBuffer, 0644)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error saving PDF: %v", err)
-	// }
-
 	return pdfBuffer, nil
 }
 
 // mergePDFs merges multiple PDFs into one using pdfcpu
-// func mergePDFs(pdfPaths []string, outputPath string) error {
-// 	// Configuration for pdfcpu (use nil for default configuration)
-// 	conf := model.NewDefaultConfiguration()
+func mergePDFs(b ...[]byte) (*bytes.Buffer, error) {
+	// Configuration for pdfcpu (use nil for default configuration)
+	conf := model.NewDefaultConfiguration()
+	readers := []io.ReadSeeker{}
+	// Create readers for the PDFs
+	for _, v := range b {
+		readers = append(readers, bytes.NewReader(v))
+	}
 
-// 	// Merge PDFs into the output file
-// 	if err := api.MergeCreateFile(pdfPaths, outputPath, false, conf); err != nil {
-// 		return fmt.Errorf("error merging PDFs: %v", err)
-// 	}
+	// Buffer to hold the merged PDF data
+	tempw := new(bytes.Buffer)
 
-// 	return nil
-// }
+	// Merge PDFs into the output file
+	if err := api.MergeRaw(readers, tempw, false, conf); err != nil {
+		return nil, fmt.Errorf("error merging PDFs: %v", err)
+	}
+	return tempw, nil
+}
