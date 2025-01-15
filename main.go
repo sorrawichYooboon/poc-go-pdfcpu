@@ -36,6 +36,7 @@ func main() {
 		// tempPDFPath := "output/temp.pdf"
 		pdfBuffer, err := convertHTMLToPDFWithChromedp(htmlContent)
 		if err != nil {
+			fmt.Println(err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to convert HTML to PDF"})
 		}
 
@@ -72,18 +73,6 @@ func main() {
 		if err := api.MergeRaw(readers, tempw, false, conf); err != nil {
 			return fmt.Errorf("error merging PDFs: %v", err)
 		}
-
-		// // Write the merged PDF to a file
-		// err = os.WriteFile(mergedPDFPath, tempw.Bytes(), 0644)
-		// if err != nil {
-		// 	return fmt.Errorf("error saving merged PDF: %v", err)
-		// }
-
-		// // Step 5: Read the merged PDF and return as byte stream
-		// mergedPDF, err := os.ReadFile(mergedPDFPath)
-		// if err != nil {
-		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read merged PDF"})
-		// }
 
 		return c.Blob(http.StatusOK, "application/pdf", tempw.Bytes())
 	})
