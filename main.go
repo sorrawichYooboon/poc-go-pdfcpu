@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"os"
 
@@ -32,26 +33,59 @@ func main() {
 		}
 
 		// Step 3: Convert HTML to PDF using chromedp
-		tempPDFPath := "output/temp.pdf"
-		if err := convertHTMLToPDFWithChromedp(htmlContent, tempPDFPath); err != nil {
+		// tempPDFPath := "output/temp.pdf"
+		pdfBuffer, err := convertHTMLToPDFWithChromedp(htmlContent)
+		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to convert HTML to PDF"})
 		}
 
 		// Step 4: Merge with another PDF
 		additionalPDFPath := "assets/test1.pdf"
 		additional2PDFPath := "assets/test2.pdf"
-		mergedPDFPath := "output/merged.pdf"
-		if err := mergePDFs([]string{tempPDFPath, additionalPDFPath, additional2PDFPath}, mergedPDFPath); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to merge PDFs"})
-		}
+		// mergedPDFPath := "output/merged.pdf"
 
-		// Step 5: Read the merged PDF and return as byte stream
-		mergedPDF, err := os.ReadFile(mergedPDFPath)
+		// Configuration for pdfcpu (use nil for default configuration)
+		conf := model.NewDefaultConfiguration()
+
+		// Read additional PDF files into memory
+		additionalPDF, err := os.ReadFile(additionalPDFPath)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read merged PDF"})
+			return fmt.Errorf("failed to read additional PDF file: %v", err)
 		}
 
-		return c.Blob(http.StatusOK, "application/pdf", mergedPDF)
+		additional2PDF, err := os.ReadFile(additional2PDFPath)
+		if err != nil {
+			return fmt.Errorf("failed to read second additional PDF file: %v", err)
+		}
+
+		// Create readers for the PDFs
+		readers := []io.ReadSeeker{
+			bytes.NewReader(pdfBuffer),      // First PDF (generated PDF)
+			bytes.NewReader(additionalPDF),  // Second PDF (file from path)
+			bytes.NewReader(additional2PDF), // Third PDF (file from path)
+		}
+
+		// Buffer to hold the merged PDF data
+		tempw := new(bytes.Buffer)
+
+		// Merge PDFs into the output file
+		if err := api.MergeRaw(readers, tempw, false, conf); err != nil {
+			return fmt.Errorf("error merging PDFs: %v", err)
+		}
+
+		// // Write the merged PDF to a file
+		// err = os.WriteFile(mergedPDFPath, tempw.Bytes(), 0644)
+		// if err != nil {
+		// 	return fmt.Errorf("error saving merged PDF: %v", err)
+		// }
+
+		// // Step 5: Read the merged PDF and return as byte stream
+		// mergedPDF, err := os.ReadFile(mergedPDFPath)
+		// if err != nil {
+		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read merged PDF"})
+		// }
+
+		return c.Blob(http.StatusOK, "application/pdf", tempw.Bytes())
 	})
 
 	// Start the server
@@ -74,7 +108,7 @@ func processTemplate(templatePath string, data map[string]string) (string, error
 }
 
 // convertHTMLToPDFWithChromedp converts HTML content to a PDF using chromedp
-func convertHTMLToPDFWithChromedp(htmlContent, pdfPath string) error {
+func convertHTMLToPDFWithChromedp(htmlContent string) ([]byte, error) {
 	// Create a new Chrome context
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -96,27 +130,27 @@ func convertHTMLToPDFWithChromedp(htmlContent, pdfPath string) error {
 		}),
 	)
 	if err != nil {
-		return fmt.Errorf("error generating PDF with chromedp: %v", err)
+		return nil, fmt.Errorf("error generating PDF with chromedp: %v", err)
 	}
 
-	// Write the PDF to the specified file
-	err = os.WriteFile(pdfPath, pdfBuffer, 0644)
-	if err != nil {
-		return fmt.Errorf("error saving PDF: %v", err)
-	}
+	// // Write the PDF to the specified file
+	// err = os.WriteFile(pdfPath, pdfBuffer, 0644)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error saving PDF: %v", err)
+	// }
 
-	return nil
+	return pdfBuffer, nil
 }
 
 // mergePDFs merges multiple PDFs into one using pdfcpu
-func mergePDFs(pdfPaths []string, outputPath string) error {
-	// Configuration for pdfcpu (use nil for default configuration)
-	conf := model.NewDefaultConfiguration()
+// func mergePDFs(pdfPaths []string, outputPath string) error {
+// 	// Configuration for pdfcpu (use nil for default configuration)
+// 	conf := model.NewDefaultConfiguration()
 
-	// Merge PDFs into the output file
-	if err := api.MergeCreateFile(pdfPaths, outputPath, false, conf); err != nil {
-		return fmt.Errorf("error merging PDFs: %v", err)
-	}
+// 	// Merge PDFs into the output file
+// 	if err := api.MergeCreateFile(pdfPaths, outputPath, false, conf); err != nil {
+// 		return fmt.Errorf("error merging PDFs: %v", err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
